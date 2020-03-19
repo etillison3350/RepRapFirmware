@@ -13,7 +13,7 @@
 #if SUPPORT_12864_LCD
 
 #include "General/FreelistManager.h"
-#include "ST7920/lcd7920.h"
+#include <Display/Lcd/lcd7920.h>
 #include "Storage/MassStorage.h"
 
 // Menu item class hierarchy
@@ -28,7 +28,7 @@ public:
 	static constexpr Visibility AlwaysVisible = 0;
 
 	// Draw this element on the LCD respecting 'maxWidth' and 'highlight'
-	virtual void Draw(Lcd7920& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) = 0;
+	virtual void Draw(Lcd& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) = 0;
 
 	// Select this element with a push of the encoder.
 	// If it returns nullptr false go into adjustment mode, if we can adjust the item.
@@ -50,7 +50,7 @@ public:
 	virtual bool Adjust(int clicks) { return true; }
 
 	// If the width was specified as zero, update it with the actual width. Also update the height.
-	virtual void UpdateWidthAndHeight(Lcd7920& lcd) = 0;
+	virtual void UpdateWidthAndHeight(Lcd& lcd) = 0;
 
 	// DC: I don't know what this one is for, the person who wrote it didn't document it
 	virtual PixelNumber GetVisibilityRowOffset(PixelNumber tCurrentOffset, PixelNumber fontHeight) const { return 0; }
@@ -63,7 +63,7 @@ public:
 	bool IsVisible() const;
 
 	// Erase this item if it is drawn but should not be visible
-	void EraseIfInvisible(Lcd7920& lcd, PixelNumber tOffset);
+	void EraseIfInvisible(Lcd& lcd, PixelNumber tOffset);
 
 	// Return the width of this item in pixels
 	PixelNumber GetWidth() const { return width; }
@@ -76,10 +76,10 @@ protected:
 
 	// Print the item starting at the current cursor position, which may be off screen. Used to find the width and also to really print the item.
 	// Overridden for items that support variable alignment
-	virtual void CorePrint(Lcd7920& lcd) { }
+	virtual void CorePrint(Lcd& lcd) { }
 
 	// Print the item at the correct place with the correct alignment
-	void PrintAligned(Lcd7920& lcd, PixelNumber tOffset, PixelNumber rightMargin);
+	void PrintAligned(Lcd& lcd, PixelNumber tOffset, PixelNumber rightMargin);
 
 	const PixelNumber row, column;
 	PixelNumber width, height;
@@ -102,11 +102,11 @@ public:
 	void operator delete(void* p) { Release<TextMenuItem>(p); }
 
 	TextMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, Visibility vis, const char *t);
-	void Draw(Lcd7920& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
-	void UpdateWidthAndHeight(Lcd7920& lcd) override;
+	void Draw(Lcd& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
+	void UpdateWidthAndHeight(Lcd& lcd) override;
 
 protected:
-	void CorePrint(Lcd7920& lcd) override;
+	void CorePrint(Lcd& lcd) override;
 
 private:
 	const char *text;
@@ -119,14 +119,14 @@ public:
 	void operator delete(void* p) { Release<ButtonMenuItem>(p); }
 
 	ButtonMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, FontNumber fn, Visibility vis, const char *t, const char *cmd, const char *acFile);
-	void Draw(Lcd7920& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
-	void UpdateWidthAndHeight(Lcd7920& lcd) override;
+	void Draw(Lcd& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
+	void UpdateWidthAndHeight(Lcd& lcd) override;
 	bool Select(const StringRef& cmd) override;
 
 	PixelNumber GetVisibilityRowOffset(PixelNumber tCurrentOffset, PixelNumber fontHeight) const override;
 
 protected:
-	void CorePrint(Lcd7920& lcd) override;
+	void CorePrint(Lcd& lcd) override;
 
 private:
 	const char *text;
@@ -141,18 +141,18 @@ public:
 	void operator delete(void* p) { Release<ValueMenuItem>(p); }
 
 	ValueMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, Visibility vis, bool adj, unsigned int v, unsigned int d);
-	void Draw(Lcd7920& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
+	void Draw(Lcd& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
 	bool Select(const StringRef& cmd) override;
 	bool CanAdjust() override { return true; }
 	bool Adjust(int clicks) override;
-	void UpdateWidthAndHeight(Lcd7920& lcd) override;
+	void UpdateWidthAndHeight(Lcd& lcd) override;
 
 	PixelNumber GetVisibilityRowOffset(PixelNumber tCurrentOffset, PixelNumber fontHeight) const override;
 
 	unsigned int GetReferencedToolNumber() const;
 
 protected:
-	void CorePrint(Lcd7920& lcd) override;
+	void CorePrint(Lcd& lcd) override;
 
 private:
 	enum class AdjustMode : uint8_t { displaying, adjusting, liveAdjusting };
@@ -188,11 +188,11 @@ public:
 	void operator delete(void* p) { Release<FilesMenuItem>(p); }
 
 	FilesMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, FontNumber fn, Visibility vis, const char *cmd, const char *dir, const char *acFile, unsigned int nf);
-	void Draw(Lcd7920& lcd, PixelNumber rightMargin, bool highlight, PixelNumber tOffset) override;
+	void Draw(Lcd& lcd, PixelNumber rightMargin, bool highlight, PixelNumber tOffset) override;
 	void Enter(bool bForwardDirection) override;
 	int Advance(int nCounts) override;
 	bool Select(const StringRef& cmd) override;
-	void UpdateWidthAndHeight(Lcd7920& lcd) override;
+	void UpdateWidthAndHeight(Lcd& lcd) override;
 
 	PixelNumber GetVisibilityRowOffset(PixelNumber tCurrentOffset, PixelNumber fontHeight) const override;
 
@@ -202,7 +202,7 @@ protected:
 	void vResetViewState();
 
 private:
-	void ListFiles(Lcd7920& lcd, PixelNumber rightMargin, bool highlight, PixelNumber tOffset);
+	void ListFiles(Lcd& lcd, PixelNumber rightMargin, bool highlight, PixelNumber tOffset);
 	uint8_t GetDirectoryNesting() const;
 
 	const unsigned int numDisplayLines;
@@ -238,8 +238,8 @@ public:
 
 	ImageMenuItem(PixelNumber r, PixelNumber c, Visibility vis, const char *pFileName);
 
-	void Draw(Lcd7920& lcd, PixelNumber rightMargin, bool highlight, PixelNumber tOffset) override;
-	void UpdateWidthAndHeight(Lcd7920& lcd) override;
+	void Draw(Lcd& lcd, PixelNumber rightMargin, bool highlight, PixelNumber tOffset) override;
+	void UpdateWidthAndHeight(Lcd& lcd) override;
 
 private:
 	String<MaxFilenameLength> fileName;

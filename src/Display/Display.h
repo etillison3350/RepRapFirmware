@@ -13,7 +13,9 @@
 #if SUPPORT_12864_LCD
 
 #include "RotaryEncoder.h"
-#include "ST7920/lcd7920.h"
+#include "Lcd/Lcd.h"
+#include "Lcd/lcd7920.h"
+#include "Lcd/lcd1309.h"
 #include "Menu.h"
 #include "GCodes/GCodeResult.h"
 
@@ -33,7 +35,7 @@ public:
 	void UpdatingFirmware();
 
 private:
-	Lcd7920 *lcd;
+	Lcd *lcd;
 	Menu *menu;
 	RotaryEncoder *encoder;
 	uint32_t whenBeepStarted;

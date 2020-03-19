@@ -153,14 +153,14 @@ GCodeResult Display::Configure(GCodeBuffer& gb, const StringRef& reply)
 		seen = true;
 		switch (gb.GetUIValue())
 		{
-		case 1:		// 12864 display
+		case 1:		// ST7290 12864 display
 			if (lcd == nullptr)
 			{
 				lcd = new Lcd7920(LcdCSPin, fonts, ARRAY_SIZE(fonts));
 			}
 			if (gb.Seen('F'))
 			{
-				lcd->SetSpiClockFrequency(gb.GetUIValue());
+				((Lcd7920 *) lcd)->SetSpiClockFrequency(gb.GetUIValue());
 			}
 			lcd->Init();
 			IoPort::SetPinMode(LcdBeepPin, OUTPUT_PWM_LOW);
@@ -175,6 +175,22 @@ GCodeResult Display::Configure(GCodeBuffer& gb, const StringRef& reply)
 			{
 				menu = new Menu(*lcd);
 			}
+			menu->Load("main");
+			break;
+		case 2:
+			if (lcd == nullptr) {
+				lcd = new Lcd1309(fonts, ARRAY_SIZE(fonts));
+			}
+			lcd->Init();
+			IoPort::SetPinMode(LcdBeepPin, OUTPUT_PWM_LOW);
+			lcd->SetFont(SmallFontNumber);
+
+			if (encoder == nullptr) {
+				encoder = new RotaryEncoder(EncoderPinA, EncoderPinB, EncoderPinSw);
+				encoder->Init(DefaultPulsesPerClick);
+			}
+			if (menu == nullptr)
+				menu = new Menu(*lcd);
 			menu->Load("main");
 			break;
 

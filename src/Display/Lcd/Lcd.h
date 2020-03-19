@@ -1,12 +1,18 @@
-#ifndef LCD7920_H
-#define LCD7920_H
+/*
+ * Lcd.h
+ *
+ *  Created on: Mar 8, 2020
+ *      Author: Ethan Tillison
+ */
+
+#ifndef LCD_12864_H_
+#define LCD_12864_H_
 
 #include "RepRapFirmware.h"
 
 #if SUPPORT_12864_LCD
 
-#include "Print.h"
-#include "SharedSpi.h"
+#include <Print.h>
 
 // Enumeration for specifying drawing modes
 enum class PixelMode : uint8_t
@@ -30,101 +36,86 @@ struct LcdFont
 typedef uint8_t PixelNumber;
 const PixelNumber NumRows = 64, NumCols = 128;
 
-// Class for driving 128x64 graphical LCD fitted with ST7920 controller
-// This drives the GLCD in serial mode so that it needs just 2 pins.
-
 // Derive the LCD class from the Print class so that we can print stuff to it in alpha mode
-class Lcd7920 : public Print
-{
+class Lcd : public Print {
 public:
-	// Construct a GLCD driver.
-	Lcd7920(Pin csPin, const LcdFont * const fnts[], size_t nFonts);
-
 	constexpr PixelNumber GetNumRows() const { return NumRows; }
 	constexpr PixelNumber GetNumCols() const { return NumCols; }
 
-	// Set the SPI clock frequency
-	void SetSpiClockFrequency(uint32_t freq);
-
-	// Write a single character in the current font. Called by the 'print' functions.
-	//  c = character to write
-	// Returns the number of characters written (1 if we wrote it, 0 otherwise)
-	virtual size_t write(uint8_t c);		// write a character
-
 	// Write a space
-	void WriteSpaces(PixelNumber numPixels);
+	virtual void WriteSpaces(PixelNumber numPixels) = 0;
 
 	// Initialize the display. Call this in setup(). Also call setFont to select initial text font.
-	void Init();
+	virtual void Init() = 0;
 
 	// Return the number of fonts
-	size_t GetNumFonts() const { return numFonts; }
+	virtual size_t GetNumFonts() const = 0;
 
 	// Select the font to use for subsequent calls to write() in graphics mode
-	void SetFont(size_t newFont);
+	virtual void SetFont(size_t newFont) = 0;
 
 	// Get the current font height
-	PixelNumber GetFontHeight() const;
+	virtual PixelNumber GetFontHeight() const = 0;
 
 	// Get the height of a specified font
-	PixelNumber GetFontHeight(size_t fontNumber) const;
+	virtual PixelNumber GetFontHeight(size_t fontNumber) const = 0;
 
 	// Select normal or inverted text (only works in graphics mode)
-	void TextInvert(bool b);
+	virtual void TextInvert(bool b) = 0;
 
 	// Clear the display and select non-inverted text.
-	void Clear(PixelNumber top = 0, PixelNumber left = 0, PixelNumber bottom = NumRows, PixelNumber right = NumCols);
+	virtual void Clear(PixelNumber top = 0, PixelNumber left = 0, PixelNumber bottom = NumRows, PixelNumber right = NumCols) = 0;
 
 	// Set the cursor position
 	//  r = row, the number of pixels from the top of the display to the top of the character.
 	//  c = column, is the number of pixels from the left hand edge of the display and the left hand edge of the character.
-	void SetCursor(PixelNumber r, PixelNumber c);
+	virtual void SetCursor(PixelNumber r, PixelNumber c) = 0;
 
 	// Get the cursor row. Useful after we have written some text.
-	PixelNumber GetRow() const { return row; }
+	virtual PixelNumber GetRow() const = 0;
 
 	// Get the cursor column. Useful after we have written some text.
-	PixelNumber GetColumn() const { return column; }
+	virtual PixelNumber GetColumn() const = 0;
 
 	// Set the left margin. This is where the cursor goes to when we print newline.
-	void SetLeftMargin(PixelNumber c);
+	virtual void SetLeftMargin(PixelNumber c) = 0;
 
 	// Set the right margin. In graphics mode, anything written will be truncated at the right margin. Defaults to the right hand edge of the display.
-	void SetRightMargin(PixelNumber r);
+	virtual void SetRightMargin(PixelNumber r) = 0;
 
 	// Clear a rectangle from the current position to the right margin (graphics mode only). The height of the rectangle is the height of the current font.
-	void ClearToMargin();
+	virtual void ClearToMargin() = 0;
 
 	// Flush the display buffer to the display. Data will not be committed to the display until this is called.
-	void FlushAll();
+	virtual void FlushAll() = 0;
 
 	// Flush just some data, returning true if this needs to be called again
-	bool FlushSome();
+	virtual bool FlushSome() = 0;
 
 	// Set, clear or invert a pixel
 	//  x = x-coordinate of the pixel, measured from left hand edge of the display
 	//  y = y-coordinate of the pixel, measured down from the top of the display
 	//  mode = whether we want to set, clear or invert the pixel
-	void SetPixel(PixelNumber y, PixelNumber x, PixelMode mode);
+	virtual void SetPixel(PixelNumber y, PixelNumber x, PixelMode mode) = 0;
 
 	// Read a pixel. Returns true if the pixel is set, false if it is clear.
 	//  x = x-coordinate of the pixel, measured from left hand edge of the display
 	//  y = y-coordinate of the pixel, measured down from the top of the display
-	bool ReadPixel(PixelNumber y, PixelNumber x) const;
+	virtual bool ReadPixel(PixelNumber y, PixelNumber x) const = 0;
 
 	// Draw a line.
 	//  x0 = x-coordinate of one end of the line, measured from left hand edge of the display
 	//  y0 = y-coordinate of one end of the line, measured down from the top of the display
 	//  x1, y1 = coordinates of the other end od the line
 	//  mode = whether we want to set, clear or invert each pixel
-	void Line(PixelNumber top, PixelNumber left, PixelNumber bottom, PixelNumber right, PixelMode mode);
+	virtual void Line(PixelNumber top, PixelNumber left, PixelNumber bottom, PixelNumber right, PixelMode mode);
 
 	// Draw a circle
 	//  x0 = x-coordinate of the centre, measured from left hand edge of the display
 	//  y0 = y-coordinate of the centre, measured down from the top of the display
 	//  radius = radius of the circle in pixels
 	//  mode = whether we want to set, clear or invert each pixel
-	void Circle(PixelNumber row, PixelNumber col, PixelNumber radius, PixelMode mode);
+	virtual void Circle(PixelNumber row, PixelNumber col, PixelNumber radius, PixelMode mode);
 
 	// Draw a bitmap
 	//  x0 = x-coordinate of the top left, measured from left hand edge of the display. Currently, must be a multiple of 8.
@@ -132,41 +123,16 @@ public:
 	//  width = width of bitmap in pixels. Currently, must be a multiple of 8.
 	//  rows = height of bitmap in pixels
 	//  data = bitmap image, must be ((width/8) * rows) bytes long
-	void Bitmap(PixelNumber top, PixelNumber left, PixelNumber height, PixelNumber width, const uint8_t data[]);
+	virtual void Bitmap(PixelNumber top, PixelNumber left, PixelNumber height, PixelNumber width, const uint8_t data[]) = 0;
 
 	// Draw a bitmap row
 	//  x0 = x-coordinate of the top left, measured from left hand edge of the display
 	//  y0 = y-coordinate of the top left, measured down from the top of the display
 	//  width = width of bitmap in pixels
 	//  data = bitmap image, must be ((width + 7)/8) bytes long
-	void BitmapRow(PixelNumber top, PixelNumber left, PixelNumber width, const uint8_t data[], bool invert);
-
-private:
-	const LcdFont * const *fonts;
-	const size_t numFonts;
-	size_t currentFontNumber;						// index of the current font
-	uint32_t charVal;
-	sspi_device device;
-	uint16_t lastCharColData;						// data for the last non-space column, used for kerning
-	uint8_t numContinuationBytesLeft;
-	PixelNumber row, column;
-	PixelNumber startRow, startCol, endRow, endCol;	// coordinates of the dirty rectangle
-	PixelNumber nextFlushRow;						// which row we need to flush next
-	PixelNumber leftMargin, rightMargin;
-	uint8_t image[(NumRows * NumCols)/8];			// image buffer, 1K in size
-	bool textInverted;
-	bool justSetCursor;
-
-	void sendLcdCommand(uint8_t command);
-	void sendLcdData(uint8_t data);
-	void sendLcd(uint8_t data1, uint8_t data2);
-	void CommandDelay();
-	void DataDelay();
-	void setGraphicsAddress(unsigned int r, unsigned int c);
-	size_t writeNative(uint16_t c);					// write a decoded character
-	void SetDirty(PixelNumber r, PixelNumber c);
+	virtual void BitmapRow(PixelNumber top, PixelNumber left, PixelNumber width, const uint8_t data[], bool invert) = 0;
 };
 
 #endif
 
-#endif
+#endif /* SRC_DISPLAY_LCD_LCD_H_ */
