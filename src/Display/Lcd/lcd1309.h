@@ -118,6 +118,7 @@ private:
 	PixelNumber row, column;
 	PixelNumber startRow, startCol, endRow, endCol;	// coordinates of the dirty rectangle
 	PixelNumber nextFlushCol;						// which column we need to flush next
+	PixelNumber nextFlushRow;						// which row we need to flush next
 	PixelNumber leftMargin, rightMargin;
 	uint8_t image[(NumRows * NumCols)/8];			// image buffer, 1K in size
 	bool textInverted;

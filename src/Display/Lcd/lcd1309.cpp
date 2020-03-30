@@ -50,6 +50,8 @@ void Lcd1309::Init()
 	startCol = NumCols;
 	endRow = endCol = nextFlushCol = 0;
 
+	IoPort::SetPinMode(LcdResetPin, OUTPUT_HIGH);
+
 	// Starting sequence from Ultimaker2Marlin
 	// https://github.com/Ultimaker/Ultimaker2Marlin/blob/master/Marlin/UltiLCD2_low_lib.cpp
 	IoPort::WriteDigital(LcdResetPin, 0); // Drive the reset pin low
@@ -60,7 +62,8 @@ void Lcd1309::Init()
 	I2C::Init();
 
 	{
-		uint8_t i2cBytes[23] = {
+		uint8_t i2cBytes[24] = {
+				I2CLcdSendCommand,
 				LcdCommandLockCommands, 0x12, // Unlock Commands
 				LcdCommandDisplayOff,
 				0xD5, 0xA0, // Clock divider/freq.
@@ -77,17 +80,17 @@ void Lcd1309::Init()
 		};
 
 //		MutexLocker lock(Tasks::GetI2CMutex());
-		I2C::Transfer(_ssd1309_addr, i2cBytes, 23, 0);
+		I2C::Transfer(_ssd1309_addr, i2cBytes, 24, 0);
 	}
 
 	Clear();
 	FlushAll();
 
 	{
-		uint8_t i2cBytes[1] = {LcdCommandDisplayOn};
+		uint8_t i2cBytes[2] = {I2CLcdSendCommand, LcdCommandDisplayOn};
 
 //		MutexLocker lock(Tasks::GetI2CMutex());
-		I2C::Transfer(_ssd1309_addr, i2cBytes, 1, 0);
+		I2C::Transfer(_ssd1309_addr, i2cBytes, 2, 0);
 	}
 	currentFontNumber = 0;
 }
@@ -266,7 +269,7 @@ size_t Lcd1309::writeNative(uint16_t ch)
 					for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
 					    // The top pixel of the row being written to
 						uint8_t baseRow = (r + (row / 8)) * 8;
-						uint8_t mask = (uint8_t) (baseRow < row ? cmask >> (row - baseRow) : cmask << (baseRow - row));
+						uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
 
 						const uint8_t oldVal = *p;
 						const uint8_t newVal = textInverted ? oldVal | mask : oldVal & ~mask;
@@ -283,7 +286,7 @@ size_t Lcd1309::writeNative(uint16_t ch)
 
 		while (nCols != 0 && column < rightMargin)
 		{
-			uint16_t colData = *reinterpret_cast<const uint16_t*>(fontPtr);
+			uint16_t colData = *reinterpret_cast<const uint16_t*>(fontPtr) & cmask;
 			fontPtr += bytesPerColumn;
 			if (colData != 0)
 			{
@@ -292,14 +295,14 @@ size_t Lcd1309::writeNative(uint16_t ch)
 			if (ySize != 0)
 			{
 				if (textInverted)
-					colData = ~colData;
+					colData = colData ^ cmask;
 
 				uint8_t *p = image + ((row / 8) * NumCols + column);
 				for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
 					// The top pixel of the row being written to
 					uint8_t baseRow = (r + (row / 8)) * 8;
-					uint8_t mask = (uint8_t) (baseRow < row ? cmask >> (row - baseRow) : cmask << (baseRow - row));
-					uint8_t data = (uint8_t) (baseRow < row ? colData >> (row - baseRow) : colData << (baseRow - row));
+					uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
+					uint8_t data = (uint8_t) (baseRow < row ? colData << (row - baseRow) : colData >> (baseRow - row));
 
 					const uint8_t oldVal = *p;
 					const uint8_t newVal = (oldVal & ~mask) | data;
@@ -349,7 +352,7 @@ void Lcd1309::WriteSpaces(PixelNumber numPixels)
 			for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
 				// The top pixel of the row being written to
 				uint8_t baseRow = (r + (row / 8)) * 8;
-				uint8_t mask = (uint8_t) (baseRow < row ? cmask >> (row - baseRow) : cmask << (baseRow - row));
+				uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
 
 				const uint8_t oldVal = *p;
 				const uint8_t newVal = textInverted ? oldVal | mask : oldVal & ~mask;
@@ -410,7 +413,7 @@ void Lcd1309::ClearToMargin()
 			for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
 				// The top pixel of the row being written to
 				uint8_t baseRow = (r + (row / 8)) * 8;
-				uint8_t mask = (uint8_t) (baseRow < row ? cmask >> (row - baseRow) : cmask << (baseRow - row));
+				uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
 
 				const uint8_t oldVal = *p;
 				const uint8_t newVal = textInverted ? oldVal | mask : oldVal & ~mask;
@@ -534,7 +537,7 @@ bool Lcd1309::FlushSome()
 			nextFlushCol = startCol;	// start from the beginning
 		}
 
-		if (nextFlushCol == startRow)	// if we are starting from the beginning
+		if (nextFlushCol == startCol)	// if we are starting from the beginning
 		{
 			startCol++; // flag this column as flushed because it will be soon
 		}
@@ -546,11 +549,13 @@ bool Lcd1309::FlushSome()
 
 			setGraphicsAddress(startRowNum, nextFlushCol);
 			uint8_t *ptr = image + (startRowNum * NumCols + nextFlushCol);
-			uint8_t data[8];
-			size_t numBytes = 0;
+			uint8_t data[9];
+			data[0] = I2CLcdSendData;
+			size_t numBytes = 1;
 			while (startRowNum < endRowNum) {
 				data[numBytes++] = *ptr;
 				ptr += NumCols;
+				startRowNum++;
 			}
 			I2C::Transfer(_ssd1309_addr, data, numBytes, 0);
 		}
@@ -567,6 +572,52 @@ bool Lcd1309::FlushSome()
 	}
 	return false;
 }
+
+//bool Lcd1309::FlushSome() {
+//	// See if there is anything to flush
+//	if (endCol > startCol && endRow > startRow)
+//	{
+//		// Decide which row to flush next
+//		if (nextFlushRow < startRow || nextFlushRow >= endRow)
+//		{
+//			nextFlushRow = startRow;	// start from the beginning
+//		}
+//
+//		if (nextFlushRow == startRow)	// if we are starting form the beginning
+//		{
+//			startRow = (startRow & 0xF8) + 8;					// flag this row as flushed because it will be soon
+//		}
+//
+//		// Flush that row
+//		{
+//			uint8_t startColNum = startCol;
+//
+//			setGraphicsAddress(nextFlushRow / 8, startColNum);
+//
+//			uint8_t *ptr = image + ((NumCols * (nextFlushRow / 8)) + startColNum);
+//			uint8_t data[129];
+//			data[0] = I2CLcdSendData;
+//			size_t numBytes = 1;
+//			while (startColNum < endCol)
+//			{
+//				data[numBytes++] = *ptr++;
+//				++startColNum;
+//			}
+//			I2C::Transfer(_ssd1309_addr, data, numBytes, 0);
+//		}
+//
+//		if (startRow < endRow)
+//		{
+//			++nextFlushRow;
+//			return true;
+//		}
+//
+//		startRow = NumRows;
+//		startCol = NumCols;
+//		endCol = endRow = nextFlushRow = 0;
+//	}
+//	return false;
+//}
 
 // Set the cursor position
 void Lcd1309::SetCursor(PixelNumber r, PixelNumber c)
@@ -622,12 +673,13 @@ bool Lcd1309::ReadPixel(PixelNumber x, PixelNumber y) const
 // Set the address to write to. The row address is in 8-bit words, so it ranges from 0 to 7.
 void Lcd1309::setGraphicsAddress(unsigned int r, unsigned int c)
 {
-	uint8_t positioningBytes[3] = {
+	uint8_t positioningBytes[4] = {
+			I2CLcdSendCommand,
 			(uint8_t) (c & 0xF), 				 // 0x0X sets the lower nibble of the current column to X
 			(uint8_t) (0x10 | ((c >> 4) & 0xF)), // 0x1Y sets the higher nibble to Y
-			(uint8_t) (0xB0 | ((r / 8) & 0x7))  	 // 0xBZ sets the row address to Z
+			(uint8_t) (0xB0 | (r & 0x7)) 	 // 0xBZ sets the row address to Z
 	};
-	I2C::Transfer(_ssd1309_addr, positioningBytes, 3, 0);
+	I2C::Transfer(_ssd1309_addr, positioningBytes, 4, 0);
 }
 
 #endif
