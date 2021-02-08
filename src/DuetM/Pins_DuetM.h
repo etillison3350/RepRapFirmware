@@ -162,6 +162,8 @@ constexpr Pin LcdBeepPin = 15;
 constexpr Pin EncoderPinA = 31;
 constexpr Pin EncoderPinB = 39;
 constexpr Pin EncoderPinSw = 7;
+// Reset pin for SSD1309
+constexpr Pin LcdResetPin = 21;
 
 // M42 and M208 commands now use logical pin numbers, not firmware pin numbers.
 // This next definition defines the highest one.

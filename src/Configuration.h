@@ -322,7 +322,7 @@ constexpr float DefaultMaxLaserPower = 255.0;			// Power setting in M3 command f
 // It appears that the slow rise time interferes with the watchdog timer resets, because at 200MHz clock frequency the system gets stuck
 // in a boot loop caused by the watchdog timer going off.
 // At 100kHz I2C clock frequency, these issues are rare.
-constexpr uint32_t I2cClockFreq = 100000;				// clock frequency in Hz. 100kHz is 10us per bit, so about 90us per byte if there is no clock stretching
+constexpr uint32_t I2cClockFreq = 400000;				// clock frequency in Hz. 100kHz is 10us per bit, so about 90us per byte if there is no clock stretching
 constexpr size_t MaxI2cBytes = 32;						// max bytes in M260 or M261 command
 
 // File handling
