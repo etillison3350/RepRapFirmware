@@ -16,6 +16,8 @@
 #include "Tasks.h"
 #include "Hardware/IoPorts.h"
 
+#include "RepRap.h"
+
 constexpr uint8_t I2CLcdSendCommand = 0x00;
 constexpr uint8_t I2CLcdSendData    = 0x40;
 
@@ -30,9 +32,17 @@ constexpr uint8_t LcdCommandNop                  = 0xE3;
 constexpr uint8_t LcdCommandLockCommands         = 0xFD;
 constexpr uint8_t LcdCommandSetAddressingMode    = 0x20;
 
-constexpr unsigned int LcdCommandDelayMicros = 5;
-constexpr unsigned int LcdDataDelayMicros = 4;			// delay between sending data bytes
+constexpr unsigned int LcdCommandDelayMicros = 10;
+constexpr unsigned int LcdDataDelayMicros = 10;			// delay between sending data bytes
 constexpr unsigned int LcdDisplayClearDelayMillis = 3;	// 1.6ms should be enough
+
+/**
+ * Send data over I2C. Must hold lock first.
+ */
+static void Transfer(uint16_t address, uint8_t *buffer, size_t numToWrite, size_t numToRead) {
+	I2C_IFACE.Transfer(address, buffer, numToWrite, numToRead, TwoWire::DefaultWaitForStatusFunc);
+}
+
 
 Lcd1309::Lcd1309(const LcdFont * const fnts[], size_t nFonts)
 	: fonts(fnts), numFonts(nFonts), currentFontNumber(0), numContinuationBytesLeft(0), textInverted(false) {
@@ -79,8 +89,8 @@ void Lcd1309::Init()
 				LcdCommandFullDisplayOnDisable // Turn the 'all pixels on' mode off
 		};
 
-//		MutexLocker lock(Tasks::GetI2CMutex());
-		I2C::Transfer(_ssd1309_addr, i2cBytes, 24, 0);
+		MutexLocker lock(Tasks::GetI2CMutex());
+		Transfer(_ssd1309_addr, i2cBytes, 24, 0);
 	}
 
 	Clear();
@@ -89,9 +99,10 @@ void Lcd1309::Init()
 	{
 		uint8_t i2cBytes[2] = {I2CLcdSendCommand, LcdCommandDisplayOn};
 
-//		MutexLocker lock(Tasks::GetI2CMutex());
-		I2C::Transfer(_ssd1309_addr, i2cBytes, 2, 0);
+		MutexLocker lock(Tasks::GetI2CMutex());
+		Transfer(_ssd1309_addr, i2cBytes, 2, 0);
 	}
+
 	currentFontNumber = 0;
 }
 
@@ -123,8 +134,11 @@ PixelNumber Lcd1309::GetFontHeight(size_t fontNumber) const
 // Only one pixel in each 16-bit word needs to be flagged dirty for the whole word to get refreshed.
 void Lcd1309::SetDirty(PixelNumber r, PixelNumber c)
 {
-//	if (r >= NumRows) { debugPrintf("r=%u\n", r); return; }
-//	if (c >= NumCols) { debugPrintf("c=%u\n", c); return; }
+	if (reprap.Debug(moduleDisplay)) {
+		debugPrintf("r,c=%u,%u\n", r, c);
+//		if (r >= NumRows) { debugPrintf("r=%u\n", r); return; }
+//		if (c >= NumCols) { debugPrintf("c=%u\n", c); return; }
+	}
 
 	if (c < startCol) { startCol = c; }
 	if (c >= endCol) { endCol = c + 1; }
@@ -543,21 +557,30 @@ bool Lcd1309::FlushSome()
 		}
 
 		// Flush that column
-		{
-			uint8_t startRowNum = startRow / 8;
-			const uint8_t endRowNum = (endRow + 7) / 8;
+		uint8_t startRowNum = startRow / 8;
+		const uint8_t endRowNum = (endRow + 7) / 8;
 
-			setGraphicsAddress(startRowNum, nextFlushCol);
-			uint8_t *ptr = image + (startRowNum * NumCols + nextFlushCol);
-			uint8_t data[9];
-			data[0] = I2CLcdSendData;
-			size_t numBytes = 1;
-			while (startRowNum < endRowNum) {
-				data[numBytes++] = *ptr;
-				ptr += NumCols;
-				startRowNum++;
-			}
-			I2C::Transfer(_ssd1309_addr, data, numBytes, 0);
+		uint8_t *imgPtr = image + (startRowNum * NumCols + nextFlushCol);
+		uint8_t i2cData[9];
+		i2cData[0] = I2CLcdSendData;
+		size_t numBytes = 1;
+		while (startRowNum < endRowNum) {
+			i2cData[numBytes++] = *imgPtr;
+			imgPtr += NumCols;
+			startRowNum++;
+		}
+
+		if (reprap.Debug(moduleDisplay))
+		{
+			debugPrintf("Send %uB @ %u %u (dirty %u,%u to %u,%u)\n", numBytes, startRowNum, nextFlushCol, startRow, startCol, endRow, endCol);
+		}
+
+		{
+			MutexLocker Lock(Tasks::GetI2CMutex());
+			setGraphicsAddress(startRow / 8, nextFlushCol);
+			delayMicroseconds(LcdCommandDelayMicros);
+			Transfer(_ssd1309_addr, i2cData, numBytes, 0);
+			delayMicroseconds(LcdDataDelayMicros);
 		}
 
 		if (startCol != endCol)
@@ -676,10 +699,11 @@ void Lcd1309::setGraphicsAddress(unsigned int r, unsigned int c)
 	uint8_t positioningBytes[4] = {
 			I2CLcdSendCommand,
 			(uint8_t) (c & 0xF), 				 // 0x0X sets the lower nibble of the current column to X
-			(uint8_t) (0x10 | ((c >> 4) & 0xF)), // 0x1Y sets the higher nibble to Y
+			(uint8_t) (0x10 | ((c >> 4) & 0x7)), // 0x1Y sets the higher nibble to Y
 			(uint8_t) (0xB0 | (r & 0x7)) 	 // 0xBZ sets the row address to Z
 	};
-	I2C::Transfer(_ssd1309_addr, positioningBytes, 4, 0);
+
+	Transfer(_ssd1309_addr, positioningBytes, 4, 0);
 }
 
 #endif
