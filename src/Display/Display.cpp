@@ -18,8 +18,9 @@ constexpr int DefaultPulsesPerClick = -4;			// values that work with displays I 
 
 extern const LcdFont font11x14;
 extern const LcdFont font7x11;
+extern const LcdFont font5x7;
 
-const LcdFont * const fonts[] = { &font7x11, &font11x14 };
+const LcdFont * const fonts[] = { &font7x11, &font11x14, &font5x7 };
 constexpr size_t SmallFontNumber = 0;
 constexpr size_t LargeFontNumber = 1;
 

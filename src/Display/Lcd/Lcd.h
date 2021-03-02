@@ -77,6 +77,9 @@ public:
 	// Get the cursor column. Useful after we have written some text.
 	virtual PixelNumber GetColumn() const = 0;
 
+	// Sets the vertical padding above/below text
+	virtual void SetPadding(PixelNumber p) = 0;
+
 	// Set the left margin. This is where the cursor goes to when we print newline.
 	virtual void SetLeftMargin(PixelNumber c) = 0;
 

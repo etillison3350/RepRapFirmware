@@ -144,68 +144,69 @@ void Lcd7920::SetDirty(PixelNumber r, PixelNumber c)
 size_t Lcd7920::write(uint8_t c)
 {
 	if (numContinuationBytesLeft == 0)
-	{
-		if (c < 0x80)
 		{
-			return writeNative(c);
+			if (c < 0x80)
+			{
+				return writeNative(c);
+			}
+			else if ((c & 0xE0) == 0xC0)
+			{
+				charVal = (uint32_t)(c & 0x1F);
+				numContinuationBytesLeft = 1;
+				return 1;
+			}
+			else if ((c & 0xF0) == 0xE0)
+			{
+				charVal = (uint32_t)(c & 0x0F);
+				numContinuationBytesLeft = 2;
+				return 1;
+			}
+			else if ((c & 0xF8) == 0xF0)
+			{
+				charVal = (uint32_t)(c & 0x07);
+				numContinuationBytesLeft = 3;
+				return 1;
+			}
+			else if ((c & 0xFC) == 0xF8)
+			{
+				charVal = (uint32_t)(c & 0x03);
+				numContinuationBytesLeft = 4;
+				return 1;
+			}
+			else if ((c & 0xFE) == 0xFC)
+			{
+				charVal = (uint32_t)(c & 0x01);
+				numContinuationBytesLeft = 5;
+				return 1;
+			}
+			else
+			{
+				return writeNative(0x7F);
+			}
 		}
-		else if ((c & 0xE0) == 0xC0)
+		else if ((c & 0xC0) == 0x80)
 		{
-			charVal = (uint32_t)(c & 0x1F);
-			numContinuationBytesLeft = 1;
-			return 1;
-		}
-		else if ((c & 0xF0) == 0xE0)
-		{
-			charVal = (uint32_t)(c & 0x0F);
-			numContinuationBytesLeft = 2;
-			return 1;
-		}
-		else if ((c & 0xF8) == 0xF0)
-		{
-			charVal = (uint32_t)(c & 0x07);
-			numContinuationBytesLeft = 3;
-			return 1;
-		}
-		else if ((c & 0xFC) == 0xF8)
-		{
-			charVal = (uint32_t)(c & 0x03);
-			numContinuationBytesLeft = 4;
-			return 1;
-		}
-		else if ((c & 0xFE) == 0xFC)
-		{
-			charVal = (uint32_t)(c & 0x01);
-			numContinuationBytesLeft = 5;
-			return 1;
+			charVal = (charVal << 6) | (c & 0x3F);
+			--numContinuationBytesLeft;
+			if (numContinuationBytesLeft == 0)
+			{
+				return writeNative((charVal < 0x10000) ? (uint16_t)charVal : 0x007F);
+			}
+			else
+			{
+				return 1;
+			}
 		}
 		else
 		{
+			// Bad UTF8 state
+			numContinuationBytesLeft = 0;
 			return writeNative(0x7F);
 		}
-	}
-	else if ((c & 0xC0) == 0x80)
-	{
-		charVal = (charVal << 6) | (c & 0x3F);
-		--numContinuationBytesLeft;
-		if (numContinuationBytesLeft == 0)
-		{
-			return writeNative((charVal < 0x10000) ? (uint16_t)charVal : 0x007F);
-		}
-		else
-		{
-			return 1;
-		}
-	}
-	else
-	{
-		// Bad UTF8 state
-		numContinuationBytesLeft = 0;
-		return writeNative(0x7F);
-	}
 }
 
 size_t Lcd7920::writeNative(uint16_t ch)
+
 {
 	const LcdFont * const currentFont = fonts[currentFontNumber];
 	if (ch == '\n')
@@ -222,7 +223,7 @@ size_t Lcd7920::writeNative(uint16_t ch)
 			ch = 0x007F;			// replace unsupported characters by square box
 		}
 
-		uint8_t ySize = currentFont->height;
+		uint8_t ySize = currentFont->height + padding * 2;
 		const uint8_t bytesPerColumn = (ySize + 7)/8;
 		if (row >= NumRows)
 		{
@@ -274,7 +275,7 @@ size_t Lcd7920::writeNative(uint16_t ch)
 							*p = newVal;
 							SetDirty(row + i, column);
 						}
-						p += (NumCols/8);
+						p += (NumCols / 8);
 					}
 				}
 				++column;
@@ -321,7 +322,7 @@ size_t Lcd7920::writeNative(uint16_t ch)
 void Lcd7920::WriteSpaces(PixelNumber numPixels)
 {
 	const LcdFont * const currentFont = fonts[currentFontNumber];
-	uint8_t ySize = currentFont->height;
+	uint8_t ySize = currentFont->height + padding * 2;
 	if (row >= NumRows)
 	{
 		ySize = 0;				// we still execute the code, so that the caller can tell how many columns the text will occupy by writing it off-screen
@@ -336,7 +337,7 @@ void Lcd7920::WriteSpaces(PixelNumber numPixels)
 		if (ySize != 0)
 		{
 			const uint8_t mask = 0x80 >> (column & 7);
-			uint8_t *p = image + ((row * (NumCols/8)) + (column/8));
+			uint8_t *p = image + ((row * (NumCols / 8)) + (column / 8));
 			for (uint8_t i = 0; i < ySize && p < (image + sizeof(image)); ++i)
 			{
 				const uint8_t oldVal = *p;
@@ -372,7 +373,7 @@ void Lcd7920::SetRightMargin(PixelNumber r)
 // Clear a rectangle from the current position to the right margin. The height of the rectangle is the height of the current font.
 void Lcd7920::ClearToMargin()
 {
-	const uint8_t fontHeight = fonts[currentFontNumber]->height;
+	const uint8_t ySize = fonts[currentFontNumber]->height + padding * 2;
 	while (column < rightMargin)
 	{
 		uint8_t *p = image + ((row * (NumCols/8)) + (column/8));
@@ -388,7 +389,7 @@ void Lcd7920::ClearToMargin()
 			nextColumn = rightMargin;;
 		}
 
-		for (uint8_t i = 0; i < fontHeight && p < (image + sizeof(image)); ++i)
+		for (uint8_t i = 0; i < ySize && p < (image + sizeof(image)); ++i)
 		{
 			const uint8_t oldVal = *p;
 			const uint8_t newVal = (textInverted) ? oldVal | mask : oldVal & ~mask;
@@ -591,6 +592,17 @@ void Lcd7920::SetCursor(PixelNumber r, PixelNumber c)
 	column = c;
 	lastCharColData = 0u;    // flag that we just set the cursor position, so no space before next character
 	justSetCursor = true;
+}
+
+void Lcd7920::SetPadding(PixelNumber p)
+{
+	if (padding != p) {
+		padding = p;
+		if (!justSetCursor)
+		{
+			lastCharColData = 0xFFFF;				// force a space when switching padding
+		}
+	}
 }
 
 void Lcd7920::SetPixel(PixelNumber y, PixelNumber x, PixelMode mode)

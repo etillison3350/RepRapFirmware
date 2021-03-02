@@ -8,16 +8,17 @@
  *  Each menu file holds a sequence of commands, one per line.
  *  The following commands are supported:
  *
- *  image [Rnn] [Cnn] [Fnn] L"filename" *    							; display the image from "filename" at position RC
- *  text [Rnn] [Cnn] [Fnn] T"text" *    								; display non-selectable "text" at position RC
- *  button [Rnn] [Cnn] [Fnn] [Vnn] T"text" A"action" [L"filename"] *    ; display selectable "text" at RC, perform action when clicked
- *  value [Rnn] [Cnn] [Fnn] [Dnn] Wnnn Nvvv *   						; display the specified value at RC to the specified number of decimal places in the specified width
- *  alter [Rnn] [Cnn] [Fnn] [Dnn] Wnnn Nvvv *    						; display the specified value at RC to the specified number of decimal places in the specified width and allow it to be altered
- *  files [Rnn] [Fnn] Nnn I"initial-directory" A"action" [L"filename"] * ; display a list of files N lines high and allow them to be selected. The list uses the full width of the display.
+ *  image [Rnn] [Cnn] [Fnn] L"filename" *    							   ; display the image from "filename" at position RC
+ *  text [Rnn] [Cnn] [Fnn] T"text" *    								   ; display non-selectable "text" at position RC
+ *  button [Rnn] [Cnn] [Fnn] [Pnn] [Vnn] T"text" A"action" [L"filename"] * ; display selectable "text" at RC, perform action when clicked
+ *  value [Rnn] [Cnn] [Fnn] [Pnn] [Dnn] Wnnn Nvvv *   					   ; display the specified value at RC to the specified number of decimal places in the specified width
+ *  alter [Rnn] [Cnn] [Fnn] [Pnn] [Dnn] Wnnn Nvvv *    					   ; display the specified value at RC to the specified number of decimal places in the specified width and allow it to be altered
+ *  files [Rnn] [Fnn] Nnn I"initial-directory" A"action" [L"filename"] *   ; display a list of files N lines high and allow them to be selected. The list uses the full width of the display.
  *
  *  Rnn is the row number for the top of the element measured in pixels from the top of the display
  *  Cnn is the column number for the left of the element measured in pixels from the left hand edge of the display
  *  Fnn is the font to use, 0=small 1=large
+ *  Pnn is the number of pixels of padding on top/bottom
  *  Wnn is the width in pixels for the element
  *  Dnn specifies the number of decimal places for numeric display
  *
@@ -164,33 +165,33 @@ void Menu::DisplayMessageBox(const MessageBox& mbox)
 	const PixelNumber left = sideMargin + 1 + insideMargin;
 	const PixelNumber right = NumCols - left;
 	const PixelNumber availableWidth = right - left;
-	AddItem(new TextMenuItem(top, left, availableWidth, MenuItem::CentreAlign, fontToUse, MenuItem::AlwaysVisible, mbox.title.c_str()), false);
-	AddItem(new TextMenuItem(top + rowHeight, left, availableWidth, MenuItem::CentreAlign, fontToUse, MenuItem::AlwaysVisible, mbox.message.c_str()), false);	// only 1 row for now
+	AddItem(new TextMenuItem(top, left, availableWidth, MenuItem::CentreAlign, fontToUse, 0, MenuItem::AlwaysVisible, mbox.title.c_str()), false);
+	AddItem(new TextMenuItem(top + rowHeight, left, availableWidth, MenuItem::CentreAlign, fontToUse, 0, MenuItem::AlwaysVisible, mbox.message.c_str()), false);	// only 1 row for now
 
 	// Add whichever XYZ jog buttons we have been asked to display - assume only XYZ for now
 	const PixelNumber axisButtonWidth = availableWidth/4;
 	const PixelNumber axisButtonStep = (availableWidth - 3 *axisButtonWidth)/2 + axisButtonWidth;
 	if (IsBitSet(mbox.controls, X_AXIS))
 	{
-		AddItem(new ValueMenuItem(top + 2 * rowHeight, left, axisButtonWidth, MenuItem::CentreAlign, fontToUse, MenuItem::AlwaysVisible, true, 510, 1), true);
+		AddItem(new ValueMenuItem(top + 2 * rowHeight, left, axisButtonWidth, MenuItem::CentreAlign, fontToUse, 0, MenuItem::AlwaysVisible, true, 510, 1), true);
 	}
 	if (IsBitSet(mbox.controls, Y_AXIS))
 	{
-		AddItem(new ValueMenuItem(top + 2 * rowHeight, left + axisButtonStep, axisButtonWidth, MenuItem::CentreAlign, fontToUse, MenuItem::AlwaysVisible, true, 511, 1), true);
+		AddItem(new ValueMenuItem(top + 2 * rowHeight, left + axisButtonStep, axisButtonWidth, MenuItem::CentreAlign, fontToUse, 0, MenuItem::AlwaysVisible, true, 511, 1), true);
 	}
 	if (IsBitSet(mbox.controls, Z_AXIS))
 	{
-		AddItem(new ValueMenuItem(top + 2 * rowHeight, left + 2 * axisButtonStep, axisButtonWidth, MenuItem::CentreAlign, fontToUse, MenuItem::AlwaysVisible, true, 512, 2), true);
+		AddItem(new ValueMenuItem(top + 2 * rowHeight, left + 2 * axisButtonStep, axisButtonWidth, MenuItem::CentreAlign, fontToUse, 0, MenuItem::AlwaysVisible, true, 512, 2), true);
 	}
 
 	const PixelNumber okCancelButtonWidth = 30;
 	if (mbox.mode & 2)
 	{
-		AddItem(new ButtonMenuItem(top + 3 * rowHeight, left, okCancelButtonWidth, fontToUse, MenuItem::AlwaysVisible, "OK", "M292 P0", nullptr), true);
+		AddItem(new ButtonMenuItem(top + 3 * rowHeight, left, okCancelButtonWidth, fontToUse, 0, MenuItem::AlwaysVisible, "OK", "M292 P0", nullptr), true);
 	}
 	if (mbox.mode & 1)
 	{
-		AddItem(new ButtonMenuItem(top + 3 * rowHeight, right - okCancelButtonWidth, okCancelButtonWidth, fontToUse, MenuItem::AlwaysVisible, "Cancel", "M292 P1", nullptr), true);
+		AddItem(new ButtonMenuItem(top + 3 * rowHeight, right - okCancelButtonWidth, okCancelButtonWidth, fontToUse, 0, MenuItem::AlwaysVisible, "Cancel", "M292 P1", nullptr), true);
 	}
 }
 
@@ -273,6 +274,7 @@ const char *Menu::ParseMenuLine(char * const commandWord)
 	unsigned int nparam = 0;
 	unsigned int width = 0;
 	unsigned int alignment = 0;
+	unsigned int padding = 0;
 	const char *text = "*";
 	const char *fname = "main";
 	const char *dirpath = "";
@@ -319,6 +321,10 @@ const char *Menu::ParseMenuLine(char * const commandWord)
 			alignment = SafeStrtoul(args, &args);
 			break;
 
+		case 'P':
+			padding = SafeStrtoul(args, &args);
+			break;
+
 		case '"':			// a string with no letter is a T argument
 			ch = 'T';
 			--args;
@@ -357,7 +363,7 @@ const char *Menu::ParseMenuLine(char * const commandWord)
 	if (StringEqualsIgnoreCase(commandWord, "text"))
 	{
 		const char *const acText = AppendString(text);
-		MenuItem * const pNewItem = new TextMenuItem(row, column, width, alignment, fontNumber, xVis, acText);
+		MenuItem * const pNewItem = new TextMenuItem(row, column, width, alignment, fontNumber, padding, xVis, acText);
 		AddItem(pNewItem, false);
 		column += pNewItem->GetWidth();
 	}
@@ -372,19 +378,19 @@ const char *Menu::ParseMenuLine(char * const commandWord)
 		const char * const textString = AppendString(text);
 		const char * const actionString = AppendString(action);
 		const char * const c_acFileString = AppendString(fname);
-		ButtonMenuItem * const pNewItem = new ButtonMenuItem(row, column, width, fontNumber, xVis, textString, actionString, c_acFileString);
+		ButtonMenuItem * const pNewItem = new ButtonMenuItem(row, column, width, fontNumber, padding, xVis, textString, actionString, c_acFileString);
 		AddItem(pNewItem, true);
 		column += pNewItem->GetWidth();
 	}
 	else if (StringEqualsIgnoreCase(commandWord, "value"))
 	{
-		ValueMenuItem * const pNewItem = new ValueMenuItem(row, column, width, alignment, fontNumber, xVis, false, nparam, decimals);
+		ValueMenuItem * const pNewItem = new ValueMenuItem(row, column, width, alignment, fontNumber, padding, xVis, false, nparam, decimals);
 		AddItem(pNewItem, false);
 		column += pNewItem->GetWidth();
 	}
 	else if (StringEqualsIgnoreCase(commandWord, "alter"))
 	{
-		ValueMenuItem * const pNewItem = new ValueMenuItem(row, column, width, alignment, fontNumber, xVis, true, nparam, decimals);
+		ValueMenuItem * const pNewItem = new ValueMenuItem(row, column, width, alignment, fontNumber, padding, xVis, true, nparam, decimals);
 		AddItem(pNewItem, true);
 		column += pNewItem->GetWidth();
 	}

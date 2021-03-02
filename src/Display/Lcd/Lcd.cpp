@@ -2,7 +2,6 @@
  * Lcd.c
  *
  *  Created on: Mar 18, 2020
- *      Author: Ethan Tillison
  */
 
 #include "Lcd.h"

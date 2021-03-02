@@ -12,7 +12,7 @@
 
 #if SUPPORT_12864_LCD
 
-#include "MenuItem.h"
+#include "MenuItem/MenuItem.h"
 
 class MessageBox;
 

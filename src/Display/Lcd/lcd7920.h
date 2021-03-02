@@ -60,6 +60,9 @@ public:
 	// Get the cursor column. Useful after we have written some text.
 	PixelNumber GetColumn() const { return column; }
 
+	// Sets the vertical padding above/below text
+	void SetPadding(PixelNumber p);
+
 	// Set the left margin. This is where the cursor goes to when we print newline.
 	void SetLeftMargin(PixelNumber c);
 
@@ -112,6 +115,7 @@ private:
 	PixelNumber row, column;
 	PixelNumber startRow, startCol, endRow, endCol;	// coordinates of the dirty rectangle
 	PixelNumber nextFlushRow;						// which row we need to flush next
+	PixelNumber padding;                            // vertical padding above/below text
 	PixelNumber leftMargin, rightMargin;
 	uint8_t image[(NumRows * NumCols)/8];			// image buffer, 1K in size
 	bool textInverted;
@@ -123,7 +127,7 @@ private:
 	void CommandDelay();
 	void DataDelay();
 	void setGraphicsAddress(unsigned int r, unsigned int c);
-	size_t writeNative(uint16_t c);					// write a decoded character
+	size_t writeNative(uint16_t c); // write a decoded character
 	void SetDirty(PixelNumber r, PixelNumber c);
 };
 

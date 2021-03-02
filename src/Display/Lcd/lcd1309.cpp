@@ -40,6 +40,7 @@ constexpr unsigned int LcdDisplayClearDelayMillis = 3;	// 1.6ms should be enough
  * Send data over I2C. Must hold lock first.
  */
 static void Transfer(uint16_t address, uint8_t *buffer, size_t numToWrite, size_t numToRead) {
+	delayMicroseconds(LcdCommandDelayMicros);
 	I2C_IFACE.Transfer(address, buffer, numToWrite, numToRead, TwoWire::DefaultWaitForStatusFunc);
 }
 
@@ -229,7 +230,7 @@ size_t Lcd1309::writeNative(uint16_t ch)
 			ch = 0x007F;			// replace unsupported characters by square box
 		}
 
-		uint8_t ySize = currentFont->height;
+		uint8_t ySize = currentFont->height + padding * 2;
 		const uint8_t bytesPerColumn = (ySize + 7)/8; // bytes per column in internal representation of font
 		if (row >= NumRows)
 		{
@@ -283,7 +284,11 @@ size_t Lcd1309::writeNative(uint16_t ch)
 					for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
 					    // The top pixel of the row being written to
 						uint8_t baseRow = (r + (row / 8)) * 8;
-						uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
+						uint8_t mask = 0xFF; // (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
+						if (r == 0)
+							mask &= 0xFF << (row - baseRow);
+						if (r == nRows - 1)
+							mask &= 0xFF >> (baseRow + 8 - row - ySize);
 
 						const uint8_t oldVal = *p;
 						const uint8_t newVal = textInverted ? oldVal | mask : oldVal & ~mask;
@@ -300,23 +305,27 @@ size_t Lcd1309::writeNative(uint16_t ch)
 
 		while (nCols != 0 && column < rightMargin)
 		{
-			uint16_t colData = *reinterpret_cast<const uint16_t*>(fontPtr) & cmask;
+			uint32_t colData = (*reinterpret_cast<const uint16_t*>(fontPtr) << padding) & cmask;
 			fontPtr += bytesPerColumn;
 			if (colData != 0)
 			{
-				lastCharColData = colData & cmask;
+				lastCharColData = colData;
 			}
 			if (ySize != 0)
 			{
-				if (textInverted)
-					colData = colData ^ cmask;
-
 				uint8_t *p = image + ((row / 8) * NumCols + column);
 				for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
 					// The top pixel of the row being written to
 					uint8_t baseRow = (r + (row / 8)) * 8;
-					uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
-					uint8_t data = (uint8_t) (baseRow < row ? colData << (row - baseRow) : colData >> (baseRow - row));
+					uint8_t mask = 0xFF;
+					if (r == 0)
+						mask &= 0xFF << (row - baseRow);
+					if (r == nRows - 1)
+						mask &= 0xFF >> (baseRow + 8 - row - ySize);
+
+					uint8_t data = (uint8_t) (baseRow < row + padding ? colData << (row + padding - baseRow) : colData >> (baseRow - row - padding));
+					if (textInverted)
+						data ^= mask;
 
 					const uint8_t oldVal = *p;
 					const uint8_t newVal = (oldVal & ~mask) | data;
@@ -336,11 +345,10 @@ size_t Lcd1309::writeNative(uint16_t ch)
 	return 1;
 }
 
-// Write a space
 void Lcd1309::WriteSpaces(PixelNumber numPixels)
 {
 	const LcdFont * const currentFont = fonts[currentFontNumber];
-	uint8_t ySize = currentFont->height;
+	uint8_t ySize = currentFont->height + padding * 2;
 	if (row >= NumRows)
 	{
 		ySize = 0;				// we still execute the code, so that the caller can tell how many columns the text will occupy by writing it off-screen
@@ -349,9 +357,6 @@ void Lcd1309::WriteSpaces(PixelNumber numPixels)
 	{
 		ySize = NumRows - row;
 	}
-
-	// Mask for each column of the font
-	const uint16_t cmask = (1u << currentFont->height) - 1;
 
 	// How many bits of the 8-bit row are skipped vertically
 	const uint8_t ySkip = row & 7;
@@ -366,7 +371,11 @@ void Lcd1309::WriteSpaces(PixelNumber numPixels)
 			for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
 				// The top pixel of the row being written to
 				uint8_t baseRow = (r + (row / 8)) * 8;
-				uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
+				uint8_t mask = 0xFF;
+				if (r == 0)
+					mask &= 0xFF << (row - baseRow);
+				if (r == nRows - 1)
+					mask &= 0xFF >> (baseRow + 8 - row - ySize);
 
 				const uint8_t oldVal = *p;
 				const uint8_t newVal = textInverted ? oldVal | mask : oldVal & ~mask;
@@ -400,46 +409,7 @@ void Lcd1309::SetRightMargin(PixelNumber r)
 // Clear a rectangle from the current position to the right margin. The height of the rectangle is the height of the current font.
 void Lcd1309::ClearToMargin()
 {
-	const LcdFont * const currentFont = fonts[currentFontNumber];
-	uint8_t ySize = currentFont->height;
-	if (row >= NumRows)
-	{
-		ySize = 0;				// we still execute the code, so that the caller can tell how many columns the text will occupy by writing it off-screen
-	}
-	else if (row + ySize > NumRows)
-	{
-		ySize = NumRows - row;
-	}
-
-	// Mask for each column of the font
-	const uint16_t cmask = (1u << currentFont->height) - 1;
-
-	// How many bits of the 8-bit row are skipped vertically
-	const uint8_t ySkip = row & 7;
-	// How many 8-bit rows will be written to
-	const uint8_t nRows = (ySize + 7 + ySkip) / 8;
-
-	while (column < rightMargin)
-	{
-		if (ySize != 0)
-		{
-			uint8_t *p = image + ((row / 8) * NumCols + column);
-			for (uint8_t r = 0; r < nRows && p < (image + sizeof(image)); r++) {
-				// The top pixel of the row being written to
-				uint8_t baseRow = (r + (row / 8)) * 8;
-				uint8_t mask = (uint8_t) (baseRow < row ? cmask << (row - baseRow) : cmask >> (baseRow - row));
-
-				const uint8_t oldVal = *p;
-				const uint8_t newVal = textInverted ? oldVal | mask : oldVal & ~mask;
-				if (newVal != oldVal) {
-					*p = newVal;
-					SetDirty(baseRow, column);
-				}
-				p += NumCols;
-			}
-		}
-		++column;
-	}
+	WriteSpaces(rightMargin - column);
 }
 
 // Select normal or inverted text
@@ -578,9 +548,9 @@ bool Lcd1309::FlushSome()
 		{
 			MutexLocker Lock(Tasks::GetI2CMutex());
 			setGraphicsAddress(startRow / 8, nextFlushCol);
-			delayMicroseconds(LcdCommandDelayMicros);
+//			delayMicroseconds(LcdCommandDelayMicros);
 			Transfer(_ssd1309_addr, i2cData, numBytes, 0);
-			delayMicroseconds(LcdDataDelayMicros);
+//			delayMicroseconds(LcdDataDelayMicros);
 		}
 
 		if (startCol != endCol)
@@ -649,6 +619,17 @@ void Lcd1309::SetCursor(PixelNumber r, PixelNumber c)
 	column = c;
 	lastCharColData = 0u;    // flag that we just set the cursor position, so no space before next character
 	justSetCursor = true;
+}
+
+void Lcd1309::SetPadding(PixelNumber p)
+{
+	if (padding != p) {
+		padding = p;
+		if (!justSetCursor)
+		{
+			lastCharColData = 0xFFFF;				// force a space when switching padding
+		}
+	}
 }
 
 void Lcd1309::SetPixel(PixelNumber y, PixelNumber x, PixelMode mode)

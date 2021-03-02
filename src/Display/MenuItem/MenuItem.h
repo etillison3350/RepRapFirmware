@@ -13,7 +13,7 @@
 #if SUPPORT_12864_LCD
 
 #include "General/FreelistManager.h"
-#include <Display/Lcd/lcd7920.h>
+#include <Display/Lcd/Lcd.h>
 #include "Storage/MassStorage.h"
 
 // Menu item class hierarchy
@@ -72,7 +72,7 @@ public:
 	static void AppendToList(MenuItem **root, MenuItem *item);
 
 protected:
-	MenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, Visibility v);
+	MenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, PixelNumber pad, Visibility v);
 
 	// Print the item starting at the current cursor position, which may be off screen. Used to find the width and also to really print the item.
 	// Overridden for items that support variable alignment
@@ -85,6 +85,7 @@ protected:
 	PixelNumber width, height;
 	const Alignment align;
 	const FontNumber fontNumber;
+	const PixelNumber padding;
 	const Visibility visCase;
 
 	bool itemChanged;
@@ -101,7 +102,7 @@ public:
 	void* operator new(size_t sz) { return Allocate<TextMenuItem>(); }
 	void operator delete(void* p) { Release<TextMenuItem>(p); }
 
-	TextMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, Visibility vis, const char *t);
+	TextMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, PixelNumber pad, Visibility vis, const char *t);
 	void Draw(Lcd& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
 	void UpdateWidthAndHeight(Lcd& lcd) override;
 
@@ -118,7 +119,7 @@ public:
 	void* operator new(size_t sz) { return Allocate<ButtonMenuItem>(); }
 	void operator delete(void* p) { Release<ButtonMenuItem>(p); }
 
-	ButtonMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, FontNumber fn, Visibility vis, const char *t, const char *cmd, const char *acFile);
+	ButtonMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, FontNumber fn, PixelNumber pad, Visibility vis, const char *t, const char *cmd, const char *acFile);
 	void Draw(Lcd& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
 	void UpdateWidthAndHeight(Lcd& lcd) override;
 	bool Select(const StringRef& cmd) override;
@@ -140,7 +141,7 @@ public:
 	void* operator new(size_t sz) { return Allocate<ValueMenuItem>(); }
 	void operator delete(void* p) { Release<ValueMenuItem>(p); }
 
-	ValueMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, Visibility vis, bool adj, unsigned int v, unsigned int d);
+	ValueMenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, PixelNumber pad, Visibility vis, bool adj, unsigned int v, unsigned int d);
 	void Draw(Lcd& lcd, PixelNumber maxWidth, bool highlight, PixelNumber tOffset) override;
 	bool Select(const StringRef& cmd) override;
 	bool CanAdjust() override { return true; }
